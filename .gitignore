@@ -33,7 +33,7 @@ Thumbs.db
 *.iml
 
 Debug/
-Release/
+
 x64/Debug/
 x64/Release/
 *.suo
