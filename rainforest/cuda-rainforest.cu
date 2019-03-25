@@ -749,10 +749,6 @@ void rf256_hash_gpu(uint32_t thr_id, uint32_t threads, uint32_t startNounce, uin
 
 	if (((ulong*)hash)[3] <= ((uint64_t*)pTarget)[3]) {
 
-printf("hash[0]=%llx \n", ((ulong*)hash)[0]);
-		data[20] = NonceIterator;
-
-		printf("crc stuff = %llx \n", ((ulong*)data)[0]);
 		atomicMin(&output[0], cuda_swab32(NonceIterator));
 	}
 	

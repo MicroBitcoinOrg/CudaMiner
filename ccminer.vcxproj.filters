@@ -360,8 +360,8 @@
     <ClCompile Include="equi\blake2\blake2bx.cpp">
       <Filter>Source Files\equi</Filter>
     </ClCompile>
-    <ClCompile Include="rainforest\rainforest.c">
-      <Filter>Source Files\CUDA\rainforest</Filter>
+    <ClCompile Include="sph\rainforest.c">
+      <Filter>Source Files\sph</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -617,8 +617,8 @@
     <ClInclude Include="x16\cuda_x16.h">
       <Filter>Header Files\CUDA</Filter>
     </ClInclude>
-    <ClInclude Include="rainforest\rainforest.h">
-      <Filter>Source Files\CUDA\rainforest</Filter>
+    <ClInclude Include="sph\rainforest.h">
+      <Filter>Header Files\sph</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

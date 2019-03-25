@@ -6,9 +6,9 @@
 #include <string.h>
 #include <stdint.h>
 
-extern "C" {
-#include "rainforest.h"
-}
+
+#include "../sph/rainforest.h"
+
 
 #include <cuda_helper.h>
 #include <miner.h>

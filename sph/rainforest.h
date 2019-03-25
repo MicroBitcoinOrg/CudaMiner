@@ -29,8 +29,20 @@
 //               CRC32 and AES extensions.
 //
 // Note: always use the same options to build all files!
+#ifndef RAINFOREST_H__
+#define RAINFOREST_H__
 
-#include "miner.h"
+#ifdef _MSC_VER
+#define inline __inline
+# define __func__ __FUNCTION__
+# define __thread __declspec(thread)
+# define _ALIGN(x) __declspec(align(x))
+#else
+# define _ALIGN(x) __attribute__ ((aligned(x)))
+#include <libgen.h>
+#endif
+
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -91,5 +103,16 @@ typedef struct _ALIGN(128) rf_ctx {
 // void rf256_final(void *out, rf256_ctx_t *ctx);
 
 // hash _len_ bytes from _in_ into _out_
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 void rf256_hash(void *out, const void *in, size_t len);
+
 void rainforest_precompute(const void *in, void *out);
+
+#if defined(__cplusplus)
+}
+#endif
+
+#endif
