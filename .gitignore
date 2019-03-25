@@ -52,7 +52,7 @@ x64/Release/
 .cproject
 .buildpath
 
-compat/curl-for-windows/
+
 
 *.ptx
 *.i
