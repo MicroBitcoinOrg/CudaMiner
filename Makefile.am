@@ -85,7 +85,7 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  x17/x17.cu x17/hmq17.cu x17/sonoa.cu x17/cuda_x17_haval256.cu x17/cuda_x17_sha512.cu \
 			  phi/phi.cu phi/phi2.cu phi/cuda_phi2.cu phi/cuda_phi2_cubehash512.cu x11/cuda_streebog_maxwell.cu \
 			  x11/c11.cu x11/s3.cu x11/sib.cu x11/veltor.cu x11/cuda_streebog.cu \
-			  rainforest/rainforest.h rainforest/rainforest.c rainforest/rainforest.cu rainforest/cuda-rainforest.cu
+			  sph/rainforest.h sph/rainforest.c rainforest/rainforest.cu rainforest/cuda-rainforest.cu
 
 # scrypt
 ccminer_SOURCES += scrypt.cpp scrypt-jane.cpp \
