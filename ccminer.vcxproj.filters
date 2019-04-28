@@ -363,6 +363,15 @@
     <ClCompile Include="sph\rainforest.c">
       <Filter>Source Files\sph</Filter>
     </ClCompile>
+    <ClCompile Include="sph\rf_aes2r.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="sph\rf_crc32.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="sph\rfv2_core.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="algos.h">
@@ -618,6 +627,9 @@
       <Filter>Header Files\CUDA</Filter>
     </ClInclude>
     <ClInclude Include="sph\rainforest.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="sph\rfv2.h">
       <Filter>Header Files\sph</Filter>
     </ClInclude>
   </ItemGroup>
@@ -1052,10 +1064,10 @@
       <Filter>Source Files\CUDA\x16</Filter>
     </CudaCompile>
     <CudaCompile Include="blake2b.cu" />
-    <CudaCompile Include="rainforest\cuda-rainforest.cu">
+    <CudaCompile Include="rainforest\rainforest.cu">
       <Filter>Source Files\CUDA\rainforest</Filter>
     </CudaCompile>
-    <CudaCompile Include="rainforest\rainforest.cu">
+    <CudaCompile Include="rainforest\cuda-rainforest2.cu">
       <Filter>Source Files\CUDA\rainforest</Filter>
     </CudaCompile>
   </ItemGroup>

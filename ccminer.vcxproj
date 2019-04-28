@@ -180,6 +180,7 @@
       <AdditionalIncludeDirectories>.;compat;compat\curl-for-windows\curl\include;compat\jansson;compat\getopt;compat\pthreads;compat\curl-for-windows\openssl\openssl\include;compat\curl-for-windows\zlib;%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
       <MinimalRebuild>true</MinimalRebuild>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/Op %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -192,6 +193,8 @@
       <AdditionalOptions>/NODEFAULTLIB:LIBCMT %(AdditionalOptions)</AdditionalOptions>
       <LinkStatus>false</LinkStatus>
       <LargeAddressAware>true</LargeAddressAware>
+      <HeapReserveSize>100000000</HeapReserveSize>
+      <StackReserveSize>100000000</StackReserveSize>
     </Link>
     <CudaCompile>
       <CInterleavedPTX>false</CInterleavedPTX>
@@ -203,6 +206,7 @@
       <Optimization>O3</Optimization>
       <TargetMachinePlatform>64</TargetMachinePlatform>
       <AdditionalOptions>--Wno-deprecated-gpu-targets %(AdditionalOptions)</AdditionalOptions>
+      <FastMath>false</FastMath>
     </CudaCompile>
     <CudaLink>
       <Optimization>O3</Optimization>
@@ -246,6 +250,9 @@
     <ClCompile Include="nvsettings.cpp" />
     <ClCompile Include="pools.cpp" />
     <ClCompile Include="sph\rainforest.c" />
+    <ClCompile Include="sph\rfv2_core.c" />
+    <ClCompile Include="sph\rf_aes2r.c" />
+    <ClCompile Include="sph\rf_crc32.c" />
     <ClCompile Include="util.cpp" />
     <ClCompile Include="bench.cpp" />
     <ClCompile Include="bignum.cpp" />
@@ -270,6 +277,7 @@
     <ClCompile Include="neoscrypt\neoscrypt-cpu.c" />
     <ClInclude Include="neoscrypt\cuda_vectors.h" />
     <ClInclude Include="sph\rainforest.h" />
+    <ClInclude Include="sph\rfv2.h" />
     <ClInclude Include="x11\cuda_x11_simd512_sm2.cuh" />
     <ClInclude Include="x16\cuda_x16.h" />
     <CudaCompile Include="Algo256\bmw.cu" />
@@ -409,7 +417,7 @@
     <CudaCompile Include="cuda.cpp" />
     <CudaCompile Include="cuda_groestlcoin.cu" />
     <CudaCompile Include="cuda_myriadgroestl.cu" />
-    <CudaCompile Include="rainforest\cuda-rainforest.cu" />
+    <CudaCompile Include="rainforest\cuda-rainforest2.cu" />
     <CudaCompile Include="rainforest\rainforest.cu" />
     <CudaCompile Include="scrypt\blake.cu" />
     <CudaCompile Include="scrypt\keccak.cu" />

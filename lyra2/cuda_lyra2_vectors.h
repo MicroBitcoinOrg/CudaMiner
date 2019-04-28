@@ -3,6 +3,8 @@
 #ifndef CUDA_LYRA_VECTOR_H
 #define CUDA_LYRA_VECTOR_H
 
+#pragma once
+
 ///////////////////////////////////////////////////////////////////////////////////
 #if (defined(_MSC_VER) && defined(_WIN64)) || defined(__LP64__)
 #define __LDG_PTR   "l"

@@ -7,12 +7,12 @@
 #include <stdint.h>
 
 
-#include "../sph/rainforest.h"
-
+//#include "../sph/rainforest.h"
+#include "../sph/rfv2.h"
 
 #include <cuda_helper.h>
 #include <miner.h>
-
+#define RFV2_RAMBOX_SIZE (96*1024*1024/8)
 #define A 64
 #define debug_cpu 0
 
@@ -20,7 +20,13 @@
 
 
 extern void rainforest_init(int thr_id, uint32_t threads);
-extern void rainforest_setBlockTarget(int thr_id, const void* pDataIn, const void *pTargetIn, const void * zElement);
+//extern void rainforest_setBlockTarget(int thr_id, const void* pDataIn, const void *pTargetIn, const void * zElement);
+//extern void rainforest_setBlockTarget(int thr_id, const void* pDataIn, const void *pTargetIn,
+//	const void * zElement, const void * carry);
+
+extern void rainforest_setBlockTarget(int thr_id, int throughput, const void* pDataIn, const void *pTargetIn,
+	const void * zElement, const void * carry, const void * box);
+
 extern uint32_t rainforest_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce);
 
 static bool init[MAX_GPUS] = { 0 };
@@ -77,21 +83,68 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 
 	// pre-compute the hash state based on the constant part of the header
 
-	unsigned char ThePreData[4128*4];
-	rainforest_precompute(endiandata,ThePreData);
+//	unsigned char ThePreData[128];
+	unsigned char ThePreData[128];
+	uint64_t TheCarry[5];
+//	uint64_t   TheRambox[96 * 1024 * 1024 / 8];
+	uint64_t *TheRambox = (uint64_t*)malloc(96*1024*1024);
+	unsigned char *TheTest = (unsigned char*)malloc(96 * 1024 * 1024/8);
+//	uint64_t *TheRambox2 = (uint64_t*)malloc(96 * 1024 * 1024);
+	rfv2_raminit(TheRambox);
+//	rainforest_precompute3(endiandata,ThePreData,TheCarry,TheRambox);
 
 //	rainforest_precompute(pdata, ThePreData);
-	rainforest_setBlockTarget(thr_id, endiandata,ptarget,ThePreData);
-	do {
+	rainforest_setBlockTarget(thr_id, throughput,endiandata,ptarget,ThePreData,TheCarry,TheRambox);
+//	do {
 		
 		work->nonces[0] = rainforest_cpu_hash(thr_id, throughput, pdata[19]);
-
+		work->nonces[0] = pdata[19] + 1;
 		if (work->nonces[0] != UINT32_MAX)
 		{
 		be32enc(&endiandata[19], work->nonces[0]);
-		
-		rf256_hash(hash, endiandata, 80);
+//		uint64_t *rambox = (uint64_t*)malloc(96 * 1024 * 1024);
+//		rfv2_hash(hash, endiandata, 80, rambox, TheRambox);
+		{
+			rfv2_ctx_t ctx;
+			unsigned int loop, loops;
+			
+			uint32_t msgh;
+//			rfv2_raminit(TheRambox);
+//			rfv2_init(&ctx, 20180213, TheRambox);
 
+			rfv2_init_test(&ctx, 20180213, TheRambox,TheTest);
+			
+
+
+			msgh = rf_crc32_mem(0, endiandata, 80);
+			ctx.rb_o = msgh % (ctx.rb_l / 2);
+			ctx.rb_l = (ctx.rb_l / 2 - ctx.rb_o) * 2;
+
+			printf("CPU rb_o = %08x rb_l = %08x \n", ctx.rb_o, ctx.rb_l);
+
+			loops = sin_scaled(msgh);
+
+			printf("msgh = %08x loops = %d\n",  msgh, loops);
+
+
+
+			for (loop = 0; loop < loops; loop++) {
+				rfv2_update(&ctx, endiandata, 80);
+				// pad to the next 256 bit boundary
+				rfv2_pad256(&ctx);
+			}
+
+			rfv2_final(hash, &ctx);
+printf("number of changes %d\n",ctx.changes);
+		}
+
+
+
+
+//		rf256_hash(hash, endiandata, 80);
+	printf("CPU hash %08x %08x %08x %08x   %08x %08x %08x %08x \n",hash[0],hash[1],hash[2],hash[3],
+		hash[4], hash[5], hash[6], hash[7]
+);
 		if (((uint64_t*)hash)[3] <= ((uint64_t*)ptarget)[3]) {
 //			if (hash[7] <= Htarg && fulltest(hash, ptarget)) {
 			int res = 1;
@@ -111,11 +164,12 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 //////////////////////////////////////////////////////
 		if ((uint64_t)throughput + pdata[19] >= max_nonce) {
 			pdata[19] = max_nonce;
-			break;
+//			break;
 		}
 		pdata[19] += throughput;
 
-	} while (nonce < max_nonce && !work_restart[thr_id].restart);
+//	} while (nonce < max_nonce && !work_restart[thr_id].restart);
+	free(TheRambox);
 	*hashes_done = pdata[19] - first_nonce;
 	return 0;
 }

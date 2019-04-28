@@ -720,6 +720,7 @@ static inline void rf256_one_round(rf256_ctx_t *ctx) {
 	rf256_scramble(ctx);
 
 	carry = rf_rambox(ctx, carry);
+
 	rf256_rotbox(ctx->hash.q, ctx->hash.q + 1, (uint8_t)carry, (uint8_t)(carry >> 56));
 	rf256_scramble(ctx);
 	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
@@ -744,6 +745,53 @@ static inline void rf256_one_round(rf256_ctx_t *ctx) {
 	rf256_scramble(ctx);
 
 	carry = rf_rambox(ctx, carry);
+	rf256_rotbox(ctx->hash.q, ctx->hash.q + 1, (uint8_t)(carry >> 24), (uint8_t)(carry >> 32));
+	rf256_scramble(ctx);
+	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
+	rf256_inject(ctx);
+	rf256_aesenc(ctx);
+	rf256_scramble(ctx);
+}
+static inline void rf256_one_round2(rf256_ctx_t *ctx) {
+	uint64_t carry;
+
+	rf256_rot32x256(&ctx->hash);
+
+	carry = ((uint64_t)ctx->len << 32) + ctx->crc;
+
+	rf256_scramble(ctx);
+	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
+	rf256_scramble(ctx);
+
+	carry = rf_rambox(ctx, carry);
+
+	rf256_rotbox(ctx->hash.q, ctx->hash.q + 1, (uint8_t)carry, (uint8_t)(carry >> 56));
+	rf256_scramble(ctx);
+	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
+	rf256_scramble(ctx);
+	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
+	rf256_scramble(ctx);
+
+	carry = rf_rambox(ctx, carry);
+
+	rf256_rotbox(ctx->hash.q, ctx->hash.q + 1, (uint8_t)(carry >> 8), (uint8_t)(carry >> 48));
+	rf256_scramble(ctx);
+	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
+	rf256_scramble(ctx);
+	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
+	rf256_scramble(ctx);
+
+	carry = rf_rambox(ctx, carry);
+
+	rf256_rotbox(ctx->hash.q, ctx->hash.q + 1, (uint8_t)(carry >> 16), (uint8_t)(carry >> 40));
+	rf256_scramble(ctx);
+	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
+	rf256_scramble(ctx);
+	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
+	rf256_scramble(ctx);
+
+	carry = rf_rambox(ctx, carry);
+
 	rf256_rotbox(ctx->hash.q, ctx->hash.q + 1, (uint8_t)(carry >> 24), (uint8_t)(carry >> 32));
 	rf256_scramble(ctx);
 	rf256_divbox(ctx->hash.q, ctx->hash.q + 1);
@@ -812,6 +860,57 @@ void rainforest_precompute(const void *in, void *out)
 	memcpy(out, &ctx, sizeof(ctx));
 	//fprintf(stderr, "rf_precompute : cached %d bytes at %p\n", (int)sizeof(ctx), out);
 }
+
+void rainforest_precompute2(const void *in, void *out, uint64_t *out2)
+{
+	rf256_ctx_small_t ctx_small;
+	rf256_ctx_t ctx;
+	uint64_t carry[5];
+	rf256_init(&ctx);
+	rf256_update(&ctx, in, 76);
+
+	ctx_small.crc = ctx.crc;
+	ctx_small.len = ctx.len;
+	ctx_small.word = ctx.word;
+	memcpy(&ctx_small.hash, &ctx.hash, 8*sizeof(uint32_t));
+
+		carry[0] = ((uint64_t)80 << 32) + ctx.crc;
+	for (int i=1;i<5;i++) {
+		carry[i] = rf_rambox(&ctx, carry[i-1]);
+	}
+
+	memcpy(out, &ctx_small, sizeof(ctx_small));
+	memcpy(out2,carry,5*sizeof(uint64_t));
+	//fprintf(stderr, "rf_precompute : cached %d bytes at %p\n", (int)sizeof(ctx), out);
+}
+
+void rainforest_precompute3(const void *in, void *out, uint64_t *out2,uint64_t *RamBox)
+{
+	rf256_ctx_small_t ctx_small;
+	rf256_ctx_t ctx;
+	uint64_t carry[5];
+	rf256_init(&ctx);
+	rf256_update(&ctx, in, 76);
+
+	ctx_small.crc = ctx.crc;
+	ctx_small.len = ctx.len;
+	ctx_small.word = ctx.word;
+	memcpy(&ctx_small.hash, &ctx.hash, 8 * sizeof(uint32_t));
+	
+	carry[0] = ((uint64_t)80 << 32) + ctx.crc;
+	for (int i = 1; i<5; i++) {
+		carry[i] = rf_rambox(&ctx, carry[i - 1]);
+	}
+
+//	memcpy(RamBox,&ctx.rambox, RAMBOX_SIZE*sizeof(uint64_t));
+	for (int i=0;i<RAMBOX_SIZE;i++)
+		RamBox[i]= ctx.rambox[i];
+
+	memcpy(out, &ctx_small, sizeof(ctx_small));
+	memcpy(out2, carry, 5 * sizeof(uint64_t));
+	//fprintf(stderr, "rf_precompute : cached %d bytes at %p\n", (int)sizeof(ctx), out);
+}
+
 
 
 // hash _len_ bytes from _in_ into _out_

@@ -29,8 +29,11 @@
 //               CRC32 and AES extensions.
 //
 // Note: always use the same options to build all files!
-#ifndef RAINFOREST_H__
-#define RAINFOREST_H__
+//
+
+#ifndef RAINFOREST2
+#define RAINFOREST2
+
 
 #ifdef _MSC_VER
 #define inline __inline
@@ -41,12 +44,6 @@
 # define _ALIGN(x) __attribute__ ((aligned(x)))
 #include <libgen.h>
 #endif
-
-
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <stdio.h>
 
 // this seems necessary only for gcc, otherwise hash is bogus
 #ifdef _MSC_VER
@@ -61,70 +58,69 @@ typedef __attribute__((may_alias)) uint32_t rf_u32;
 typedef __attribute__((may_alias)) uint64_t rf_u64;
 #endif
 
-// 2048 entries for the rambox => 16kB
-#define RAMBOX_SIZE 2048
-#define RAMBOX_LOOPS 4
 
+#ifndef RF_ALIGN
+#ifdef _MSC_VER
+#define RF_ALIGN(x) __declspec(align(x))
+#else
+#define RF_ALIGN(x) __attribute__((aligned(x)))
+#endif
+#endif
+
+
+#include <stdint.h>
+#include <stddef.h>
+
+
+#define RFV2_RAMBOX_HIST 1536
+
+// number of loops run over the initial message. At 19 loops
+// most runs are under 256 changes
+#define RFV2_LOOPS 320
 
 typedef union {
 	rf_u8  b[32];
 	rf_u16 w[16];
 	rf_u32 d[8];
 	rf_u64 q[4];
-} hash256_t;
-/*
-typedef struct _ALIGN(16) rf_ctx {
-	uint64_t rambox[RAMBOX_SIZE];
-	hash256_t hash;
-	uint32_t crc;
+} rf_hash256_t;
+
+typedef struct RF_ALIGN(16) rfv2_ctx {
 	uint32_t word;  // LE pending message
 	uint32_t len;   // total message length
-} rf256_ctx_t;
-*/
-
-typedef struct _ALIGN(128) rf_ctx {
-	uint32_t word; // LE pending message
-	uint32_t len; // total message length
 	uint32_t crc;
-	//	uint32_t changes; // must remain lower than RAMBOX_HIST
-	_ALIGN(32) hash256_t hash;
-	//	uint16_t hist[RAMBOX_HIST];
-	_ALIGN(64) uint64_t rambox[RAMBOX_SIZE];
-} rf256_ctx_t;
-
-typedef struct _ALIGN(128) rf_ctx_small {
-	uint32_t word; // LE pending message
-	uint32_t len; // total message length
-	uint32_t crc;
-	_ALIGN(32) hash256_t hash;
-} rf256_ctx_small_t;
+	uint32_t changes; // must remain lower than RFV2_RAMBOX_HIST
+	uint64_t *rambox;
+	uint32_t rb_o;    // rambox offset
+	uint32_t rb_l;    // rambox length
+	rf_hash256_t RF_ALIGN(32) hash;
+	uint32_t hist[RFV2_RAMBOX_HIST];
+	uint64_t prev[RFV2_RAMBOX_HIST];
+	unsigned char *test;
+} rfv2_ctx_t;
 
 
-// initialize the hash state
-// void rf256_init(rf256_ctx_t *ctx);
+#define RFV2_RAMBOX_SIZE (96*1024*1024/8)
 
-
-// update the hash context _ctx_ with _len_ bytes from message _msg_
-// void rf256_update(rf256_ctx_t *ctx, const void *msg, size_t len);
-
-// finalize the hash and copy the result into _out_ if not null (256 bits)
-// void rf256_final(void *out, rf256_ctx_t *ctx);
-
-// hash _len_ bytes from _in_ into _out_
 #if defined(__cplusplus)
-extern "C" { 
+extern "C" {
 #endif
 
-void rf256_hash(void *out, const void *in, size_t len);
+	void rfv2_final(void *out, rfv2_ctx_t *ctx);
+	void rfv2_update(rfv2_ctx_t *ctx, const void *msg, size_t len);
+	void rfv2_init(rfv2_ctx_t *ctx, uint32_t seed, void *rambox);
+	void rfv2_init_test(rfv2_ctx_t *ctx, uint32_t seed, void *rambox, void *test);
 
-void rainforest_precompute(const void *in, void *out);
-
-void rainforest_precompute2(const void *in, void *out, uint64_t *out2);
-
-void rainforest_precompute3(const void *in, void *out, uint64_t *out2, uint64_t *RamBox);
+	int rfv2_hash(void *out, const void *in, size_t len, void *rambox, const void *rambox_template);
+	int rfv2_hash2(void *out, const void *in, size_t len, void *rambox, const void *rambox_template, uint32_t seed);
+	void rfv2_raminit(void *area);
+	uint32_t rf_crc32_mem(uint32_t crc, const void *msg, size_t len);
+	uint8_t sin_scaled(unsigned int x);
+	void rfv2_pad256(rfv2_ctx_t *ctx);
 
 #if defined(__cplusplus)
 }
 #endif
+
 
 #endif
