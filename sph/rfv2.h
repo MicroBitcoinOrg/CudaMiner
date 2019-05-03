@@ -89,7 +89,8 @@ typedef struct RF_ALIGN(16) rfv2_ctx {
 	uint32_t word;  // LE pending message
 	uint32_t len;   // total message length
 	uint32_t crc;
-	uint32_t changes; // must remain lower than RFV2_RAMBOX_HIST
+	uint16_t changes; // must remain lower than RFV2_RAMBOX_HIST
+	uint16_t left_bits;
 	uint64_t *rambox;
 	uint32_t rb_o;    // rambox offset
 	uint32_t rb_l;    // rambox length

@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <memory.h>
 
+
 #include "lyra2/cuda_lyra2_vectors.h"
 
 typedef uint8_t uchar;
@@ -47,13 +48,13 @@ uint32_t *h_aMinNonces[16];
 
 __constant__  uint32_t pTarget[8];
 __constant__  uint32_t pData[20]; // truncated data
-__constant__  uint32_t Elements[4128];
-// __constant__  uint32_t Elements[32];
-__constant__  uint64_t TheCarry[5];
+uint16_t *TheIndex[16];
+
+//__constant__  uint64_t TheCarry[5];
 uint64_t * TheRamBox[16];
 
-#define RFV2_RAMBOX_SIZE (96*1024*1024/8)
-
+#define RFV2_RAMBOX_SIZE 12*1024*1024
+#define AGGR 16
 
 // these archs are fine with unaligned reads
 //#define RF_UNALIGNED_LE64
@@ -91,29 +92,22 @@ typedef struct RF_ALIGN(16) rfv2_ctx {
 } rfv2_ctx_t;
 */
 
-typedef struct RF_ALIGN(32) rfv2_ctx {
+
+typedef struct RF_ALIGN(64) rfv2_ctx {
 	uint word;  // LE pending message
 	uint len;   // total message length
 	uint crc;
 	uint rb_o;    // rambox offset
 	uint rb_l;    // rambox length
-	uint changes; // must remain lower than RFV2_RAMBOX_HIST
+	uint16_t changes; // must remain lower than RFV2_RAMBOX_HIST
+	uint16_t left_bits;
 //	ulong *rambox;
+	uint16_t *Test;
 	hash256_t RF_ALIGN(32) hash;
 	uint  hist[RFV2_RAMBOX_HIST];
 	ulong prev[RFV2_RAMBOX_HIST];
 } rfv2_ctx_t;
 
-
-typedef struct RF_ALIGN(16) rfv2_ctx_small {
-	uint word;  // LE pending message
-	uint len;   // total message length
-	uint crc;
-	uint changes; // must remain lower than RFV2_RAMBOX_HIST
-	uint rb_o;    // rambox offset
-	uint rb_l;    // rambox length
-	hash256_t RF_ALIGN(32) hash;
-} rfv2_ctx_small_t;
 
 // the table is used as an 8 bit-aligned array of ulong for the first word,
 // and as a 16 bit-aligned array of ulong for the second word. It is filled
@@ -548,24 +542,25 @@ __device__ static uint64_t rfv2_rambox_mod(rfv2_ctx_t *ctx, ulong old,const uint
 	ulong k,ktest;
 	uint32_t idx = 0;
 	uint event_thread = (blockDim.x * blockIdx.x + threadIdx.x);
+ 
+//	uint16_t *TabIndex = &TheIndex[RFV2_RAMBOX_SIZE*event_thread];
 	k = old;
 	
 	old = rf_add64_crc32(old);
 	old ^= rf_revbit64(k);
-//	old += __builtin_clrsbl((int64_t)old);
-//if (event_thread==1)
-//printf("GPU input = %llx first old = %llx __builtin_clrsbl(old) =  %d\n", k,old, __builtin_clrsbll(old));
 
-	if (__builtin_clrsbll((int64_t)old) > 3) {
+	if (__builtin_clrsbll((int64_t)old) >= ctx->left_bits) {
 
 
 		idx = (ctx->rb_o + (uint32_t)((old % ctx->rb_l) &0xffffffff));
+
 //		if (event_thread == 0)
 //			printf("GPU idx = %08x \n",  idx);
 // check if Rambox has been previously updated
 	uint chg_idx;
 	uint changed = 0;
-
+  
+/*			
 	for (chg_idx = 0; chg_idx < ctx->changes; chg_idx++) {
 		if (ctx->hist[chg_idx] == idx) {
 			if (event_thread == 1)
@@ -575,21 +570,47 @@ __device__ static uint64_t rfv2_rambox_mod(rfv2_ctx_t *ctx, ulong old,const uint
 		break;
 		}	
 	}
+*/
+	uint32_t div = idx/AGGR;
+	uint32_t rest = idx%AGGR;
+	uint16_t TheVal = ctx->Test[div];
+	uint32_t stored_rest = (TheVal >> 12) & 0xf;
+	TheVal = TheVal & 0xfff;
+/*
+if (event_thread == 1) {
+		printf("TheVal %08x ******************************\n",TheVal);
+}
+*/
+if (TheVal<RFV2_RAMBOX_HIST && TheVal!=0)
+	if (ctx->hist[TheVal] == idx) {
+//		if (event_thread == 1)
+//			printf("******************************already existing changes \n");
+		p = ctx->prev[TheVal]; // = old;
+		changed = 1;
 
+	} 
+/*
+else 
+		if (event_thread == 1)
+			printf("not same full %08x reduced index %08x %08x how often %d TheVal %d\n",idx, div,rest, stored_rest,TheVal);
+*/
 		if (changed == 0 ) 
-				p = RamBox[idx];
+			 	p = RamBox[idx];
 		
 		ktest = p;
 		uint8_t bit = (uint8_t)((old / (uint64_t)ctx->rb_l) & 0xff);
 		old += rf_rotr64(ktest, (uint8_t)((old / (uint64_t)ctx->rb_l) & 0xff));
-//		old += k;
-		if (/*ctx->changes < RFV2_RAMBOX_HIST &&*/ changed == 0) {
+
+		if (changed == 0) {
+			if (ctx->changes < RFV2_RAMBOX_HIST) {
+			int count = stored_rest + 1;
+			ctx->Test[idx/ AGGR] = (count << 12) | ctx->changes;
 			ctx->hist[ctx->changes] = idx;
 			ctx->prev[ctx->changes] = old;
-			ctx->changes++;
+			ctx->changes++;}
 		}
 		else { 
-			ctx->prev[chg_idx] = old;
+			ctx->prev[TheVal /*& 0xfff*/] = old;
 		}
 	}
 	return old;

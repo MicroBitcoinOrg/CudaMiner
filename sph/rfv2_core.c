@@ -101,7 +101,7 @@ typedef __attribute__((may_alias)) uint32_t rf_u32;
 typedef __attribute__((may_alias)) uint64_t rf_u64;
 #endif
 
-#define RFV2_RAMBOX_HIST 1024
+#define RFV2_RAMBOX_HIST 1536
 
 // number of loops run over the initial message. At 19 loops
 // most runs are under 256 changes
@@ -347,7 +347,7 @@ static inline uint64_t rfv2_rambox(rfv2_ctx_t *ctx, uint64_t old)
 	old = rf_add64_crc32(old);
 	old ^= rf_revbit64(k);
 
-	if (__builtin_clrsbll((int64_t)old) > 3) {
+	if (__builtin_clrsbll((int64_t)old) >= ctx->left_bits) {
 
 	 idx = ctx->rb_o + (uint32_t)((old % ctx->rb_l) & 0xffffffff);
 
@@ -356,7 +356,7 @@ if (idx >= (96 * 1024 * 1024 / 8))
 //		printf("CPU  idx = %08x\n", idx);
 		ctx->test[idx]++;
 		if (ctx->test[idx]>1)
-			printf("overwriting again here ; idx = %08x for the %d times \n",idx, ctx->test[idx]);
+			printf("overwriting again here ; idx = %08x for the %d times at position %d\n",idx, ctx->test[idx],ctx->changes);
 		p = ctx->rambox[idx];
 		ktest = p;
 		uint8_t bit = (uint8_t)((old / (uint64_t)ctx->rb_l) & 0xff);

@@ -53,7 +53,7 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 	uint32_t throughput = cuda_default_throughput(thr_id, 1U << intensity);
 	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
 
-
+	throughput = 1U << 13;
 	if (opt_benchmark) {
 		ptarget[7] = 0x0cff;
 	}
@@ -88,6 +88,8 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 	uint64_t TheCarry[5];
 //	uint64_t   TheRambox[96 * 1024 * 1024 / 8];
 	uint64_t *TheRambox = (uint64_t*)malloc(96*1024*1024);
+
+
 	unsigned char *TheTest = (unsigned char*)malloc(96 * 1024 * 1024/8);
 //	uint64_t *TheRambox2 = (uint64_t*)malloc(96 * 1024 * 1024);
 	rfv2_raminit(TheRambox);
@@ -98,7 +100,7 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 //	do {
 		
 		work->nonces[0] = rainforest_cpu_hash(thr_id, throughput, pdata[19]);
-		work->nonces[0] = pdata[19] + 1;
+//		work->nonces[0] = pdata[19] + 1;
 		if (work->nonces[0] != UINT32_MAX)
 		{
 		be32enc(&endiandata[19], work->nonces[0]);
@@ -126,7 +128,16 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 
 			printf("msgh = %08x loops = %d\n",  msgh, loops);
 
-
+			if (loops >= 128)
+				ctx.left_bits = 4;
+			else if (loops >= 64)
+				ctx.left_bits = 3;
+			else if (loops >= 32)
+				ctx.left_bits = 2;
+			else if (loops >= 16)
+				ctx.left_bits = 1;
+			else
+				ctx.left_bits = 0;
 
 			for (loop = 0; loop < loops; loop++) {
 				rfv2_update(&ctx, endiandata, 80);
