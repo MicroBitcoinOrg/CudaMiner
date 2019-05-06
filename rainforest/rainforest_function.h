@@ -77,20 +77,6 @@ typedef union {
 	uint   d[8];
 	ulong  q[4];
 } hash256_t;
-/*
-typedef struct RF_ALIGN(16) rfv2_ctx {
-	uint word;  // LE pending message
-	uint len;   // total message length
-	uint crc;
-	uint changes; // must remain lower than RFV2_RAMBOX_HIST
-    ulong *rambox;
-	uint rb_o;    // rambox offset
-	uint rb_l;    // rambox length
-	hash256_t RF_ALIGN(32) hash;
-	uint  hist[RFV2_RAMBOX_HIST];
-	ulong prev[RFV2_RAMBOX_HIST];
-} rfv2_ctx_t;
-*/
 
 
 typedef struct RF_ALIGN(64) rfv2_ctx {
@@ -99,10 +85,11 @@ typedef struct RF_ALIGN(64) rfv2_ctx {
 	uint crc;
 	uint rb_o;    // rambox offset
 	uint rb_l;    // rambox length
-	uint16_t changes; // must remain lower than RFV2_RAMBOX_HIST
+	uint16_t changes; // must remain lower than RFV2_RAMBOX_HIST	
 	uint16_t left_bits;
 //	ulong *rambox;
-	uint16_t *Test;
+	uint16_t gchanges;
+	uint16_t * __restrict__ LocalIndex;
 	hash256_t RF_ALIGN(32) hash;
 	uint  hist[RFV2_RAMBOX_HIST];
 	ulong prev[RFV2_RAMBOX_HIST];
@@ -160,13 +147,6 @@ __constant static const uchar rfv2_table[256 * 2 + 6] = {
 	//,0x6e,0x0a,0x47,0xcd,0x5a,0xf0,0xdc,0xeb,0xfd,0x46,
 	//0xe5,0x6e,0x83,0xe6,0x1a,0xcc,0x4a,0x8b,0xa5,0x28,0x9e,0x50,0x48,0xa9,0xa2,0x6b,
 };
-
-// this is made of the last iteration of the rfv2_table (18th transformation)
-__constant static const uchar rfv2_iv[32] = {
-	0x78,0xe9,0x90,0xd3,0xb3,0xc8,0x9b,0x7b,0x0a,0xc4,0x86,0x6e,0x4e,0x38,0xb3,0x6b,
-	0x33,0x68,0x7c,0xed,0x73,0x35,0x4b,0x0a,0x97,0x25,0x4c,0x77,0x7a,0xaa,0x61,0x1b
-};
-
 
 
 __constant static const uchar SBOX[256] = {
@@ -393,16 +373,10 @@ __device__ static void aes2r_encrypt(uchar * state, uchar * key)
 
 __device__ static inline uint rf_crc32_32(uint crc, uint msg)
 {
-
-
 	crc = crc ^ msg;
-
 	crc = rf_crc32_table[crc & 0xff] ^ (crc >> 8);
-
 	crc = rf_crc32_table[crc & 0xff] ^ (crc >> 8);
-
 	crc = rf_crc32_table[crc & 0xff] ^ (crc >> 8);
-
 	crc = rf_crc32_table[crc & 0xff] ^ (crc >> 8);
 
 	return crc;
@@ -433,9 +407,10 @@ uint32_t crc = crc2;
 	return (uint64_t)crc;
 }
 
-__device__  static inline uint rf_crc32_mem(uint crc, const void *msg, size_t len)
+__device__  static inline uint rf_crc32_mem(uint crc, const uint8_t *msg, size_t len)
 {
-	const uchar *msg8 = (const uchar *)msg;
+
+	const uchar *msg8 = msg;
 
 	while (len--) {
 		crc = rf_crc32_8(crc, *msg8++);
@@ -496,11 +471,13 @@ __device__ static inline ulong rf_rotr64(ulong v, uchar bits)
 
 __device__ static inline ulong rf_bswap64(ulong v)
 {
+/*
 	v = ((v & 0xff00ff00ff00ff00ULL) >> 8) | ((v & 0x00ff00ff00ff00ffULL) << 8);
 	v = ((v & 0xffff0000ffff0000ULL) >> 16) | ((v & 0x0000ffff0000ffffULL) << 16);
 	v = (v >> 32) | (v << 32);
-
-	return v;
+*/
+	return cuda_swab64(v);
+//	return v;
 }
 
 __device__ static inline ulong rf_revbit64(ulong v)
@@ -508,12 +485,12 @@ __device__ static inline ulong rf_revbit64(ulong v)
 	v = ((v & 0xaaaaaaaaaaaaaaaaULL) >> 1) | ((v & 0x5555555555555555ULL) << 1);
 	v = ((v & 0xccccccccccccccccULL) >> 2) | ((v & 0x3333333333333333ULL) << 2);
 	v = ((v & 0xf0f0f0f0f0f0f0f0ULL) >> 4) | ((v & 0x0f0f0f0f0f0f0f0fULL) << 4);
-
+/*
 	v = ((v & 0xff00ff00ff00ff00ULL) >> 8) | ((v & 0x00ff00ff00ff00ffULL) << 8);
 	v = ((v & 0xffff0000ffff0000ULL) >> 16) | ((v & 0x0000ffff0000ffffULL) << 16);
 	v = (v >> 32) | (v << 32);
-
-	return v;
+*/
+	return cuda_swab64(v);
 }
 
 __device__ static inline int __builtin_clzll(int64_t x)
@@ -534,6 +511,7 @@ __device__ static inline int __builtin_clzll(int64_t x)
 __device__ static inline int __builtin_clrsbll(int64_t  x)
 {
 	return __builtin_clzll((x<0) ? ~(x << 1) : (x << 1));
+//	return __clzll((x<0) ? ~(x << 1) : (x << 1));
 }
 
 __device__ static uint64_t rfv2_rambox_mod(rfv2_ctx_t *ctx, ulong old,const uint64_t * __restrict__ RamBox)
@@ -543,7 +521,6 @@ __device__ static uint64_t rfv2_rambox_mod(rfv2_ctx_t *ctx, ulong old,const uint
 	uint32_t idx = 0;
 	uint event_thread = (blockDim.x * blockIdx.x + threadIdx.x);
  
-//	uint16_t *TabIndex = &TheIndex[RFV2_RAMBOX_SIZE*event_thread];
 	k = old;
 	
 	old = rf_add64_crc32(old);
@@ -554,26 +531,13 @@ __device__ static uint64_t rfv2_rambox_mod(rfv2_ctx_t *ctx, ulong old,const uint
 
 		idx = (ctx->rb_o + (uint32_t)((old % ctx->rb_l) &0xffffffff));
 
-//		if (event_thread == 0)
-//			printf("GPU idx = %08x \n",  idx);
-// check if Rambox has been previously updated
 	uint chg_idx;
 	uint changed = 0;
   
-/*			
-	for (chg_idx = 0; chg_idx < ctx->changes; chg_idx++) {
-		if (ctx->hist[chg_idx] == idx) {
-			if (event_thread == 1)
-				printf("******************************already existing changes \n");
-				p =	ctx->prev[chg_idx]; // = old;
-				changed = 1;
-		break;
-		}	
-	}
-*/
+
 	uint32_t div = idx/AGGR;
 	uint32_t rest = idx%AGGR;
-	uint16_t TheVal = ctx->Test[div];
+	uint16_t TheVal = __ldg(&ctx->LocalIndex[div]);
 	uint32_t stored_rest = (TheVal >> 12) & 0xf;
 	TheVal = TheVal & 0xfff;
 /*
@@ -595,23 +559,26 @@ else
 			printf("not same full %08x reduced index %08x %08x how often %d TheVal %d\n",idx, div,rest, stored_rest,TheVal);
 */
 		if (changed == 0 ) 
-			 	p = RamBox[idx];
+			 	p = __ldg(&RamBox[idx]);
 		
 		ktest = p;
 		uint8_t bit = (uint8_t)((old / (uint64_t)ctx->rb_l) & 0xff);
 		old += rf_rotr64(ktest, (uint8_t)((old / (uint64_t)ctx->rb_l) & 0xff));
 
 		if (changed == 0) {
-			if (ctx->changes < RFV2_RAMBOX_HIST) {
+			if (ctx->gchanges < RFV2_RAMBOX_HIST) {
 			int count = stored_rest + 1;
-			ctx->Test[idx/ AGGR] = (count << 12) | ctx->changes;
+			ctx->LocalIndex[idx/ AGGR] = (count << 12) | ctx->changes;
 			ctx->hist[ctx->changes] = idx;
 			ctx->prev[ctx->changes] = old;
-			ctx->changes++;}
+			ctx->changes++;
+			}
 		}
 		else { 
 			ctx->prev[TheVal /*& 0xfff*/] = old;
+
 		}
+			ctx->gchanges++;
 	}
 	return old;
 }
@@ -725,24 +692,25 @@ __device__ static inline void rfv2_one_round(rfv2_ctx_t *ctx,uint64_t * __restri
 {
 	ulong carry;
 	uint event_thread = (blockDim.x * blockIdx.x + threadIdx.x);
-	uint crc2 = ctx->crc;
+
 	rfv2_rot32x256(&ctx->hash);
-
-//	carry = ((ulong)ctx->len << 32) + ctx->crc;
-
+/*
+	if (event_thread == 1)
+	{
+		printf("GPU hash  %08x %08x %08x %08x   %08x %08x %08x %08x   \n", ctx->hash.d[0], ctx->hash.d[1], ctx->hash.d[2], ctx->hash.d[3],
+			ctx->hash.d[4], ctx->hash.d[5], ctx->hash.d[6], ctx->hash.d[7]);
+	}
+*/
 	carry = ((uint64_t)ctx->len);
 	carry = carry << 32;
 	carry += (uint64_t)ctx->crc;
 
-//if (event_thread==0)
-//	printf("GPU len %d carry %llx crc %llx \n", ctx->len, carry, ctx->crc);
-
 	rfv2_scramble(ctx);
-
 	rfv2_divbox(ctx->hash.q, ctx->hash.q + 1);
 	rfv2_scramble(ctx);
  
 	carry = rfv2_rambox_mod(ctx, carry, RamBox);  
+
 	rfv2_rotbox(ctx->hash.q, ctx->hash.q + 1, (uint8_t)((carry) & 0xff), (uint8_t)((carry >> 56) & 0xff));
 	rfv2_scramble(ctx);
 	rfv2_divbox(ctx->hash.q, ctx->hash.q + 1);

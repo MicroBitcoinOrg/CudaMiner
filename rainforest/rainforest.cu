@@ -19,22 +19,22 @@
 /* ############################################################################################################################### */
 
 
-extern void rainforest_init(int thr_id, uint32_t threads);
+extern void rainforest_init(int thr_id, uint32_t threads, const void *box);
 //extern void rainforest_setBlockTarget(int thr_id, const void* pDataIn, const void *pTargetIn, const void * zElement);
 //extern void rainforest_setBlockTarget(int thr_id, const void* pDataIn, const void *pTargetIn,
 //	const void * zElement, const void * carry);
 
-extern void rainforest_setBlockTarget(int thr_id, int throughput, const void* pDataIn, const void *pTargetIn,
-	const void * zElement, const void * carry, const void * box);
+extern void rainforest_setBlockTarget(int thr_id, int throughput, const void* pDataIn, const void *pTargetIn);
 
 extern uint32_t rainforest_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce);
 
 static bool init[MAX_GPUS] = { 0 };
-
+static uint64_t *TheRambox[MAX_GPUS];
 
 
 extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done)
 {
+	
 	uint32_t _ALIGN(64) hash[8];
 	uint32_t _ALIGN(64) endiandata[20];
 	uint32_t *pdata = work->data;
@@ -70,8 +70,9 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 //		}
 		gpulog(LOG_INFO, thr_id, "Intensity set to %g, %u cuda threads", throughput2intensity(throughput), 
 			throughput);
-
-		rainforest_init(thr_id,throughput);
+		TheRambox[thr_id] = (uint64_t*)malloc(96 * 1024 * 1024);
+		rfv2_raminit(TheRambox[thr_id]);
+		rainforest_init(thr_id,throughput,TheRambox[thr_id]);
 		CUDA_LOG_ERROR();
 		init[thr_id] = true;
 	}
@@ -81,40 +82,27 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 		be32enc(&endiandata[k], pdata[k]);
 	}
 
-	// pre-compute the hash state based on the constant part of the header
-
-//	unsigned char ThePreData[128];
 	unsigned char ThePreData[128];
 	uint64_t TheCarry[5];
-//	uint64_t   TheRambox[96 * 1024 * 1024 / 8];
-	uint64_t *TheRambox = (uint64_t*)malloc(96*1024*1024);
 
-
-	unsigned char *TheTest = (unsigned char*)malloc(96 * 1024 * 1024/8);
-//	uint64_t *TheRambox2 = (uint64_t*)malloc(96 * 1024 * 1024);
-	rfv2_raminit(TheRambox);
-//	rainforest_precompute3(endiandata,ThePreData,TheCarry,TheRambox);
-
-//	rainforest_precompute(pdata, ThePreData);
-	rainforest_setBlockTarget(thr_id, throughput,endiandata,ptarget,ThePreData,TheCarry,TheRambox);
-//	do {
+	rainforest_setBlockTarget(thr_id, throughput,endiandata,ptarget);
+	do {
 		
 		work->nonces[0] = rainforest_cpu_hash(thr_id, throughput, pdata[19]);
 //		work->nonces[0] = pdata[19] + 1;
 		if (work->nonces[0] != UINT32_MAX)
 		{
 		be32enc(&endiandata[19], work->nonces[0]);
-//		uint64_t *rambox = (uint64_t*)malloc(96 * 1024 * 1024);
-//		rfv2_hash(hash, endiandata, 80, rambox, TheRambox);
 		{
 			rfv2_ctx_t ctx;
 			unsigned int loop, loops;
 			
 			uint32_t msgh;
-//			rfv2_raminit(TheRambox);
-//			rfv2_init(&ctx, 20180213, TheRambox);
+	uint64_t *TheRambox2 = (uint64_t*)malloc(96*1024*1024);
+	rfv2_raminit(TheRambox2);
 
-			rfv2_init_test(&ctx, 20180213, TheRambox,TheTest);
+
+			rfv2_init(&ctx, 20180213, TheRambox2);
 			
 
 
@@ -127,7 +115,7 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 			loops = sin_scaled(msgh);
 
 			printf("msgh = %08x loops = %d\n",  msgh, loops);
-
+		
 			if (loops >= 128)
 				ctx.left_bits = 4;
 			else if (loops >= 64)
@@ -138,7 +126,7 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 				ctx.left_bits = 1;
 			else
 				ctx.left_bits = 0;
-
+			
 			for (loop = 0; loop < loops; loop++) {
 				rfv2_update(&ctx, endiandata, 80);
 				// pad to the next 256 bit boundary
@@ -146,7 +134,15 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 			}
 
 			rfv2_final(hash, &ctx);
-printf("number of changes %d\n",ctx.changes);
+			printf("number of changes %d\n",ctx.changes);
+/*
+		loops = ctx.changes;
+		do {
+		loops--;
+		ctx.rambox[ctx.hist[loops]] = ctx.prev[loops];
+		} while (loops);
+*/
+		free(TheRambox2);
 		}
 
 
@@ -162,6 +158,7 @@ printf("number of changes %d\n",ctx.changes);
 			work_set_target_ratio(work, hash);
 			pdata[19] = work->nonces[0];
 			*hashes_done = pdata[19] - first_nonce;
+//			free(TheRambox);
 			return res;
 		}
 		else {
@@ -175,12 +172,12 @@ printf("number of changes %d\n",ctx.changes);
 //////////////////////////////////////////////////////
 		if ((uint64_t)throughput + pdata[19] >= max_nonce) {
 			pdata[19] = max_nonce;
-//			break;
+			break;
 		}
 		pdata[19] += throughput;
 
-//	} while (nonce < max_nonce && !work_restart[thr_id].restart);
-	free(TheRambox);
+	} while (nonce < max_nonce && !work_restart[thr_id].restart);
+//	free(TheRambox);
 	*hashes_done = pdata[19] - first_nonce;
 	return 0;
 }

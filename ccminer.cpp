@@ -1728,6 +1728,9 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		opt_difficulty = 1.;
 
 	switch (opt_algo) {
+		case ALGO_RNFOREST:
+			work_set_target(work, sctx->job.diff / (1 * opt_difficulty));
+			break;
 		case ALGO_HMQ1725:
 		case ALGO_JACKPOT:
 		case ALGO_JHA:

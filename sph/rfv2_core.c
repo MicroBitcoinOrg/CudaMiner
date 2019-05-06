@@ -351,12 +351,6 @@ static inline uint64_t rfv2_rambox(rfv2_ctx_t *ctx, uint64_t old)
 
 	 idx = ctx->rb_o + (uint32_t)((old % ctx->rb_l) & 0xffffffff);
 
-if (idx >= (96 * 1024 * 1024 / 8))
-	printf("***********************************idx larger than array \n");
-//		printf("CPU  idx = %08x\n", idx);
-		ctx->test[idx]++;
-		if (ctx->test[idx]>1)
-			printf("overwriting again here ; idx = %08x for the %d times at position %d\n",idx, ctx->test[idx],ctx->changes);
 		p = ctx->rambox[idx];
 		ktest = p;
 		uint8_t bit = (uint8_t)((old / (uint64_t)ctx->rb_l) & 0xff);
@@ -655,8 +649,11 @@ static inline void rfv2_one_round(rfv2_ctx_t *ctx)
 	carry += (uint64_t)ctx->crc;
 
 //printf("CPU len %d carry %llx crc %llx \n", ctx->len , carry, ctx->crc);
-	rfv2_scramble(ctx);
 
+//	printf("CPU hash  %08x %08x %08x %08x   %08x %08x %08x %08x   \n", ctx->hash.d[0], ctx->hash.d[1], ctx->hash.d[2], ctx->hash.d[3],
+//		ctx->hash.d[4], ctx->hash.d[5], ctx->hash.d[6], ctx->hash.d[7]);
+
+	rfv2_scramble(ctx);
 	rfv2_divbox(ctx->hash.q, ctx->hash.q + 1);
 	rfv2_scramble(ctx);
 
@@ -706,19 +703,6 @@ void rfv2_init(rfv2_ctx_t *ctx, uint32_t seed, void *rambox)
 
 }
 
-void rfv2_init_test(rfv2_ctx_t *ctx, uint32_t seed, void *rambox,void *test)
-{
-	memcpy(ctx->hash.b, rfv2_iv, sizeof(ctx->hash.b));
-	ctx->crc = seed;
-	ctx->word = ctx->len = 0;
-	ctx->changes = 0;
-	ctx->rb_o = 0;
-	ctx->rb_l = RFV2_RAMBOX_SIZE;
-	ctx->rambox = (uint64_t *)rambox;
-	ctx->test = (unsigned char *)test;
-	for (int i = 0; i<RFV2_RAMBOX_SIZE; i++)
-		ctx->test[i] = 0;
-}
 
 // update the hash context _ctx_ with _len_ bytes from message _msg_
  inline void rfv2_update(rfv2_ctx_t *ctx, const void *msg, size_t len)
@@ -777,7 +761,7 @@ void rfv2_init_test(rfv2_ctx_t *ctx, uint32_t seed, void *rambox,void *test)
 // generic and may be extremely slow. sqrt() on the other hand requires some
 // extra work to implement right on FPGAs and ASICs. The operation simply
 // becomes round(100*sqrt((sin(x/16)^3)+1)+1.5).
- uint8_t sin_scaled(unsigned int x)
+ uint32_t sin_scaled(unsigned int x)
 {
 
 	int i;

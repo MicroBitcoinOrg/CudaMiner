@@ -85,7 +85,7 @@ typedef union {
 	rf_u64 q[4];
 } rf_hash256_t;
 
-typedef struct RF_ALIGN(16) rfv2_ctx {
+typedef struct RF_ALIGN(64) rfv2_ctx {
 	uint32_t word;  // LE pending message
 	uint32_t len;   // total message length
 	uint32_t crc;
@@ -97,7 +97,6 @@ typedef struct RF_ALIGN(16) rfv2_ctx {
 	rf_hash256_t RF_ALIGN(32) hash;
 	uint32_t hist[RFV2_RAMBOX_HIST];
 	uint64_t prev[RFV2_RAMBOX_HIST];
-	unsigned char *test;
 } rfv2_ctx_t;
 
 
@@ -116,7 +115,7 @@ extern "C" {
 	int rfv2_hash2(void *out, const void *in, size_t len, void *rambox, const void *rambox_template, uint32_t seed);
 	void rfv2_raminit(void *area);
 	uint32_t rf_crc32_mem(uint32_t crc, const void *msg, size_t len);
-	uint8_t sin_scaled(unsigned int x);
+	uint32_t sin_scaled(unsigned int x);
 	void rfv2_pad256(rfv2_ctx_t *ctx);
 
 #if defined(__cplusplus)
