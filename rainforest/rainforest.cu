@@ -99,8 +99,8 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 			
 			uint32_t msgh;
 	uint64_t *TheRambox2 = (uint64_t*)malloc(96*1024*1024);
-	rfv2_raminit(TheRambox2);
-
+//	rfv2_raminit(TheRambox2);
+			memcpy(TheRambox2,TheRambox[thr_id],96*1024*1024);
 
 			rfv2_init(&ctx, 20180213, TheRambox2);
 			
@@ -110,11 +110,11 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 			ctx.rb_o = msgh % (ctx.rb_l / 2);
 			ctx.rb_l = (ctx.rb_l / 2 - ctx.rb_o) * 2;
 
-			printf("CPU rb_o = %08x rb_l = %08x \n", ctx.rb_o, ctx.rb_l);
+//			printf("CPU rb_o = %08x rb_l = %08x \n", ctx.rb_o, ctx.rb_l);
 
 			loops = sin_scaled(msgh);
 
-			printf("msgh = %08x loops = %d\n",  msgh, loops);
+//			printf("msgh = %08x loops = %d\n",  msgh, loops);
 		
 			if (loops >= 128)
 				ctx.left_bits = 4;
@@ -134,7 +134,7 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 			}
 
 			rfv2_final(hash, &ctx);
-			printf("number of changes %d\n",ctx.changes);
+//			printf("number of changes %d\n",ctx.changes);
 /*
 		loops = ctx.changes;
 		do {
@@ -145,13 +145,8 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 		free(TheRambox2);
 		}
 
-
-
-
-//		rf256_hash(hash, endiandata, 80);
-	printf("CPU hash %08x %08x %08x %08x   %08x %08x %08x %08x \n",hash[0],hash[1],hash[2],hash[3],
-		hash[4], hash[5], hash[6], hash[7]
-);
+//	printf("CPU hash %08x %08x %08x %08x   %08x %08x %08x %08x \n",hash[0],hash[1],hash[2],hash[3],
+//		hash[4], hash[5], hash[6], hash[7]);
 		if (((uint64_t*)hash)[3] <= ((uint64_t*)ptarget)[3]) {
 //			if (hash[7] <= Htarg && fulltest(hash, ptarget)) {
 			int res = 1;

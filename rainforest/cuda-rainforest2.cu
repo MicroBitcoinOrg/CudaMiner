@@ -21,12 +21,12 @@ __device__ static void rfv2_update(rfv2_ctx_t *ctx, const void *msg, size_t len,
 			len -= 4;
 			continue;
 		}
-
+/*
 		ctx->word |= ((uint)*msg8++) << (8 * (ctx->len++ & 3));
 		len--;
 		if (!(ctx->len & 3))
 			rfv2_one_round(ctx,RamBox);
-
+*/
 	}  
 } 
 
@@ -124,11 +124,11 @@ void rf256v2_hash_gpu(uint32_t thr_id, uint32_t threads, uint32_t startNounce, u
 	if (Sol <= ((uint64_t*)pTarget)[3]) {
 //	if (ctx.hash.q[3] <= ((uint64_t*)pTarget)[3]) {
 
-
+/*
 		printf("GPU hash  %08x %08x %08x %08x   %08x %08x %08x %08x   \n", ctx.hash.d[0], ctx.hash.d[1], ctx.hash.d[2], ctx.hash.d[3],
 			ctx.hash.d[4], ctx.hash.d[5], ctx.hash.d[6], ctx.hash.d[7]);
 	printf("GPU number of changes %d global changes %d\n", ctx.changes, ctx.gchanges);
-
+*/
 		atomicMin(&output[0], cuda_swab32(NonceIterator));
 	}
  
