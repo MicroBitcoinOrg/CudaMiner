@@ -46,14 +46,11 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 //	rf256_ctx_t ctx, ctx_common;
 
 	const int dev_id = device_map[thr_id];
-	int intensity = (device_sm[dev_id] > 500 && !is_windows()) ? 22 : 20;
-	if (device_sm[dev_id] >= 600) intensity = 23;
-	if (device_sm[dev_id] < 350) intensity = 18;
+	int intensity = 13;
 
 	uint32_t throughput = cuda_default_throughput(thr_id, 1U << intensity);
 	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
 
-	throughput = 1U << 13;
 	if (opt_benchmark) {
 		ptarget[7] = 0x0cff;
 	}

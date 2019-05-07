@@ -282,7 +282,7 @@ Options:\n\
 			polytimos   Politimos\n\
 			quark       Quark\n\
 			qubit       Qubit\n\
-			rainforest  MicroBitcoin\n\
+			rfv2        MicroBitcoin\n\
 			sha256d     SHA256d (bitcoin)\n\
 			sha256t     SHA256 x3\n\
 			sha256q     SHA256 x4\n\
@@ -3992,7 +3992,7 @@ int main(int argc, char *argv[])
 		printf("    Built with the nVidia CUDA Toolkit %d.%d %s\n\n",
 #endif
 			CUDART_VERSION/1000, (CUDART_VERSION % 1000)/10, arch);
-		printf("  new: rainforest algorithm for nvidia cards");
+		printf("  new: rainforest v2 algorithm for nvidia cards");
 		printf("  based on ccminer 2.3.1 from tpruvot");
 		printf("  Originally based on Christian Buchner and Christian H. project\n");
 		printf("  Include some kernels from alexis78, djm34, djEzo, tsiv and krnlx.\n\n");

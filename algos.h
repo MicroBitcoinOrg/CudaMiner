@@ -129,7 +129,7 @@ static const char *algo_names[] = {
 	"polytimos",
 	"quark",
 	"qubit",
-	"rainforest",
+	"rfv2",
 	"scrypt",
 	"scrypt-jane",
 	"sha256d",
