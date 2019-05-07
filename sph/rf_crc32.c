@@ -3,6 +3,7 @@
 // Date: Feb 13th, 2018
 
 #include <stdint.h>
+#include <stdio.h>
 
 #ifdef _MSC_VER
 #define inline __inline
