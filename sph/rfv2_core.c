@@ -355,14 +355,15 @@ static inline uint64_t rfv2_rambox(rfv2_ctx_t *ctx, uint64_t old)
 		ktest = p;
 		uint8_t bit = (uint8_t)((old / (uint64_t)ctx->rb_l) & 0xff);
 		old += rf_rotr64(ktest, (uint8_t)((old / (uint64_t)ctx->rb_l)&0xff));
-
+/*
 		ctx->rambox[idx] = old;
+
 		if (ctx->changes < RFV2_RAMBOX_HIST) {
 			ctx->hist[ctx->changes] = idx;
 			ctx->prev[ctx->changes] = k;
 			ctx->changes++;
 		}
-
+*/
 	}
 	return old;
 }

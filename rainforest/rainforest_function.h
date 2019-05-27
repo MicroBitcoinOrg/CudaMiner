@@ -48,6 +48,11 @@ uint32_t *h_aMinNonces[16];
 
 __constant__  uint32_t pTarget[8];
 __constant__  uint32_t pData[20]; // truncated data
+
+uint32_t *Counter[16];
+uint32_t *Selected[16];
+
+
 uint16_t *TheIndex[16];
 
 //__constant__  uint64_t TheCarry[5];
@@ -85,14 +90,14 @@ typedef struct RF_ALIGN(64) rfv2_ctx {
 	uint crc;
 	uint rb_o;    // rambox offset
 	uint rb_l;    // rambox length
-	uint16_t changes; // must remain lower than RFV2_RAMBOX_HIST	
+//	uint16_t changes; // must remain lower than RFV2_RAMBOX_HIST	
 	uint16_t left_bits;
 //	ulong *rambox;
-	uint16_t gchanges;
-	uint16_t * __restrict__ LocalIndex;
+//	uint16_t gchanges;
+//	uint16_t * __restrict__ LocalIndex;
 	hash256_t RF_ALIGN(32) hash;
-	uint  hist[RFV2_RAMBOX_HIST];
-	ulong prev[RFV2_RAMBOX_HIST];
+//	uint  hist[RFV2_RAMBOX_HIST];
+//	ulong prev[RFV2_RAMBOX_HIST];
 } rfv2_ctx_t;
 
 
@@ -514,19 +519,25 @@ __device__ static inline int __builtin_clrsbll(int64_t  x)
 //	return __clzll((x<0) ? ~(x << 1) : (x << 1));
 }
 
+__forceinline__ __device__ unsigned lane_id()
+{
+	unsigned ret;
+	asm volatile ("mov.u32 %0, %laneid;" : "=r"(ret));
+	return ret;
+}
+
 __device__ static uint64_t rfv2_rambox_mod(rfv2_ctx_t *ctx, ulong old,const uint64_t * __restrict__ RamBox)
 {
 	ulong p;
 	ulong k,ktest;
 	uint32_t idx = 0;
-	uint event_thread = (blockDim.x * blockIdx.x + threadIdx.x);
- 
+
 	k = old;
 	
 	old = rf_add64_crc32(old);
 	old ^= rf_revbit64(k);
 
-	if (__builtin_clrsbll((int64_t)old) >= ctx->left_bits) {
+//	if (__builtin_clrsbll((int64_t)old) >= ctx->left_bits) {
 
 
 		idx = (ctx->rb_o + (uint32_t)((old % ctx->rb_l) &0xffffffff));
@@ -534,52 +545,12 @@ __device__ static uint64_t rfv2_rambox_mod(rfv2_ctx_t *ctx, ulong old,const uint
 	uint chg_idx;
 	uint changed = 0;
   
+			 	ktest = __ldg(&RamBox[idx]);
 
-	uint32_t div = idx/AGGR;
-	uint32_t rest = idx%AGGR;
-	uint16_t TheVal = __ldg(&ctx->LocalIndex[div]);
-	uint32_t stored_rest = (TheVal >> 12) & 0xf;
-	TheVal = TheVal & 0xfff;
-/*
-if (event_thread == 1) {
-		printf("TheVal %08x ******************************\n",TheVal);
-}
-*/
-if (TheVal<RFV2_RAMBOX_HIST && TheVal!=0)
-	if (ctx->hist[TheVal] == idx) {
-//		if (event_thread == 1)
-//			printf("******************************already existing changes \n");
-		p = ctx->prev[TheVal]; // = old;
-		changed = 1;
-
-	} 
-/*
-else 
-		if (event_thread == 1)
-			printf("not same full %08x reduced index %08x %08x how often %d TheVal %d\n",idx, div,rest, stored_rest,TheVal);
-*/
-		if (changed == 0 ) 
-			 	p = __ldg(&RamBox[idx]);
-		
-		ktest = p;
 		uint8_t bit = (uint8_t)((old / (uint64_t)ctx->rb_l) & 0xff);
-		old += rf_rotr64(ktest, (uint8_t)((old / (uint64_t)ctx->rb_l) & 0xff));
-
-		if (changed == 0) {
-			if (ctx->gchanges < RFV2_RAMBOX_HIST) {
-			int count = stored_rest + 1;
-			ctx->LocalIndex[idx/ AGGR] = (count << 12) | ctx->changes;
-			ctx->hist[ctx->changes] = idx;
-			ctx->prev[ctx->changes] = old;
-			ctx->changes++;
-			}
-		}
-		else { 
-			ctx->prev[TheVal /*& 0xfff*/] = old;
-
-		}
-			ctx->gchanges++;
-	}
+		old += rf_rotr64(ktest,bit);
+			
+//	}
 	return old;
 }
 

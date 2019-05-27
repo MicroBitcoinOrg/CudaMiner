@@ -863,9 +863,14 @@ int share_result(int result, int pooln, double sharediff, const char *reason)
 	if (sharediff > p->best_share)
 		p->best_share = sharediff;
 
-	global_hashrate = llround(hashrate);
+	global_hashrate = (opt_algo == ALGO_RNFOREST)? llround(hashrate/256.0) : llround(hashrate);
 
+if (opt_algo == ALGO_RNFOREST)
+	format_hashrate(hashrate/256.0, s);
+else 
 	format_hashrate(hashrate, s);
+
+
 	if (opt_showdiff)
 		sprintf(suppl, "diff %.3f", sharediff);
 	else // accepted percent
@@ -2696,7 +2701,11 @@ static void *miner_thread(void *userdata)
 
 		/* output */
 		if (!opt_quiet && loopcnt > 1 && (time(NULL) - tm_rate_log) > opt_maxlograte) {
-			format_hashrate(thr_hashrates[thr_id], s);
+			if (opt_algo==ALGO_RNFOREST)
+				format_hashrate(thr_hashrates[thr_id]/256.0, s);
+			else 
+				format_hashrate(thr_hashrates[thr_id], s);
+
 			gpulog(LOG_INFO, thr_id, "%s, %s", device_name[dev_id], s);
 			tm_rate_log = time(NULL);
 		}

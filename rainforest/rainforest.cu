@@ -49,7 +49,7 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 	int intensity = 13;
 
 	uint32_t throughput = cuda_default_throughput(thr_id, 1U << intensity);
-	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
+//	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
 
 	if (opt_benchmark) {
 		ptarget[7] = 0x0cff;
@@ -95,11 +95,11 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 			unsigned int loop, loops;
 			
 			uint32_t msgh;
-	uint64_t *TheRambox2 = (uint64_t*)malloc(96*1024*1024);
+//	uint64_t *TheRambox2 = (uint64_t*)malloc(96*1024*1024);
 //	rfv2_raminit(TheRambox2);
-			memcpy(TheRambox2,TheRambox[thr_id],96*1024*1024);
+//			memcpy(TheRambox2,TheRambox[thr_id],96*1024*1024);
 
-			rfv2_init(&ctx, 20180213, TheRambox2);
+			rfv2_init(&ctx, 20180213, TheRambox[thr_id]);
 			
 
 
@@ -113,15 +113,7 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 
 //			printf("msgh = %08x loops = %d\n",  msgh, loops);
 		
-			if (loops >= 128)
-				ctx.left_bits = 4;
-			else if (loops >= 64)
-				ctx.left_bits = 3;
-			else if (loops >= 32)
-				ctx.left_bits = 2;
-			else if (loops >= 16)
-				ctx.left_bits = 1;
-			else
+
 				ctx.left_bits = 0;
 			
 			for (loop = 0; loop < loops; loop++) {
@@ -139,13 +131,13 @@ extern "C" int scanhash_rf256(int thr_id, struct work *work, uint32_t max_nonce,
 		ctx.rambox[ctx.hist[loops]] = ctx.prev[loops];
 		} while (loops);
 */
-		free(TheRambox2);
+//		free(TheRambox2);
 		}
 
 //	printf("CPU hash %08x %08x %08x %08x   %08x %08x %08x %08x \n",hash[0],hash[1],hash[2],hash[3],
 //		hash[4], hash[5], hash[6], hash[7]);
-		if (((uint64_t*)hash)[3] <= ((uint64_t*)ptarget)[3]) {
-//			if (hash[7] <= Htarg && fulltest(hash, ptarget)) {
+//		if (((uint64_t*)hash)[3] <= ((uint64_t*)ptarget)[3]) {
+			if (fulltest(hash, ptarget)) {
 			int res = 1;
 			work_set_target_ratio(work, hash);
 			pdata[19] = work->nonces[0];

@@ -64,77 +64,96 @@ __device__ static uint32_t sin_scaled(uint x)
 }
   
 ////////////////////////// equivalent of rfv2_cpuminer.c ////////////////////////
-         
+#define Looping 256         
 #define TPB 64 
-__global__ __launch_bounds__(TPB, 8)
-void rf256v2_hash_gpu(uint32_t thr_id, uint32_t threads, uint32_t startNounce, uint32_t *   output, uint64_t * __restrict__ DieRambox, uint16_t * __restrict__ DieIndex)
+#define TPB2 512 
+__global__ __launch_bounds__(TPB, 4)
+void rf256v2_init_gpu(uint32_t thr_id, uint32_t threads, uint32_t startNounce, uint32_t * __restrict__ zCounter, uint32_t * __restrict__ zSelected)
+{
+
+	uint event_thread = (blockDim.x * blockIdx.x + threadIdx.x);
+
+	uint32_t data[20];
+
+	((uint16 *)data)[0] = ((const uint16 *)pData)[0];
+	((uint4 *)data)[4] = ((const uint4 *)pData)[4];
+
+for (int j = 0; j < Looping; j++) {
+	uint32_t NonceIterator = cuda_swab32(startNounce + Looping * event_thread + j);
+	data[19] = NonceIterator;
+    uint32_t count;
+
+	uint32_t msgh;
+
+	msgh = rf_crc32_mem(0, (uint8_t*)data, 80);
+
+	uint32_t loops = sin_scaled(msgh);
+
+	if (loops == 2) { count = atomicAdd(&zCounter[0], 1); zSelected[count] = NonceIterator; }
+}
+}
+
+
+
+__global__ __launch_bounds__(TPB2, 4)
+void rf256v2_hash_gpu(uint32_t thr_id, uint32_t threads, uint32_t startNounce, uint32_t *   output, 
+uint64_t * __restrict__ DieRambox, uint32_t * __restrict__ zCounter, uint32_t * __restrict__ zSelected)
 { 
  
 	const uint32_t rfv2_iv[8] = { 0xd390e978,  0x7b9bc8b3,  0x6e86c40a,  0x6bb3384e,  0xed7c6833,  0x0a4b3573,  0x774c2597,  0x1b61aa7a };
 	uint event_thread = (blockDim.x * blockIdx.x + threadIdx.x);
- 
+
+
+if (event_thread <= threads) {
+
 		uint64_t * __restrict__ RamBox = &DieRambox[0];
 		rfv2_ctx_t ctx; 
 		uint32_t data[20];
-		uint32_t NonceIterator = cuda_swab32(startNounce + event_thread);
+
+		uint32_t NonceIterator = __ldg(&zSelected[event_thread]);//cuda_swab32(startNounce + event_thread);
 		((uint16 *)data)[0] = ((const uint16 *)pData)[0];
 		((uint4 *)data)[4] = ((const uint4 *)pData)[4];
+		
 		data[19] = NonceIterator;
- 
-	uint loop, loops; 
-	uint msgh;  
+
+
+		uint loop, loops; 
+		uint msgh;  
 
 	((uint8*)ctx.hash.d)[0] = ((const uint8 *)rfv2_iv)[0];
 	
 	ctx.crc = RFV2_INIT_CRC;  
 	ctx.word = ctx.len = 0; 
-	ctx.changes = 0;    
-	ctx.gchanges = 0;
+
 	ctx.rb_o = 0;       
 	ctx.rb_l = RFV2_RAMBOX_SIZE/2; 
-	ctx.LocalIndex = &DieIndex[RFV2_RAMBOX_SIZE*event_thread/ AGGR];
 
 	msgh = rf_crc32_mem(0, (uint8_t*)data, 80);
 	ctx.rb_o = msgh % ctx.rb_l; 
 	ctx.rb_l = (ctx.rb_l - ctx.rb_o) * 2;
 
-	loops = sin_scaled(msgh);  
-
-	ctx.left_bits = (loops >= 128)? 4 : (loops >= 64) ? 3 : (loops >= 32) ? 2 : (loops >= 16) ? 1 : 0;
+	loops = 2;
 
 
-/*  
-	if (event_thread == 1) 
-	{
-	printf("rb_o = %08x rb_l = %08x \n", ctx.rb_o, ctx.rb_l);
-	printf("event_thread = %d msgh = %08x loops = %d\n",event_thread,msgh,loops);
-	}
-*/
+	ctx.left_bits =  0;
+
 	for (loop = 0; loop < loops; loop++) {      
 		rfv2_update(&ctx, (uint8_t*)data, 80, RamBox);                         
 		// pad to the next 256 bit boundary 
 		rfv2_pad256(&ctx, RamBox);
 	} 
  
-	rfv2_final( &ctx, RamBox);  
+	rfv2_final( &ctx, RamBox);   
 
 	uint64_t Sol = MAKE_ULONGLONG(ctx.hash.d[3], ctx.hash.d[4]);
 
 
 	if (Sol <= ((uint64_t*)pTarget)[3]) {
-//	if (ctx.hash.q[3] <= ((uint64_t*)pTarget)[3]) {
 
-/*
-		printf("GPU hash  %08x %08x %08x %08x   %08x %08x %08x %08x   \n", ctx.hash.d[0], ctx.hash.d[1], ctx.hash.d[2], ctx.hash.d[3],
-			ctx.hash.d[4], ctx.hash.d[5], ctx.hash.d[6], ctx.hash.d[7]);
-	printf("GPU number of changes %d global changes %d\n", ctx.changes, ctx.gchanges);
-*/
 		atomicMin(&output[0], cuda_swab32(NonceIterator));
 	}
- 
-	for (int i = 0; i<ctx.changes; i++)
-		ctx.LocalIndex[ctx.hist[i]/AGGR] = 0;
 
+ }
 }
 
 
@@ -143,30 +162,29 @@ void rf256v2_hash_gpu(uint32_t thr_id, uint32_t threads, uint32_t startNounce, u
 __host__
 void rainforest_init(int thr_id, uint32_t threads, const void *box)
 {  
+threads =  threads;
 //	cudaSetDevice(device_map[thr_id]);
 	// just assign the device pointer allocated in main loop
 
 	//	cudaMemcpyToSymbol(GYLocal,&hash1[thr_id], 8 * sizeof(uint32_t) * threads);
 	//	cudaMalloc((void**)&GYLocal[thr_id], 8 * sizeof(uint32_t) * threads);
 uint32_t aggr_size =(uint32_t) (RFV2_RAMBOX_SIZE/AGGR);
+CUDA_SAFE_CALL(cudaMalloc((void**)&Selected[thr_id], threads * sizeof(uint32_t)));
+
+CUDA_SAFE_CALL(cudaMalloc((void**)&Counter[thr_id], sizeof(uint32_t)));
+
 CUDA_SAFE_CALL(cudaMalloc((void**)&TheRamBox[thr_id], 1 * RFV2_RAMBOX_SIZE * sizeof(uint64_t)));
-CUDA_SAFE_CALL(cudaMalloc((void**)&TheIndex[thr_id],  threads * aggr_size * sizeof(uint16_t)));
+
+
 CUDA_SAFE_CALL(cudaMalloc(&d_aMinNonces[thr_id], 2 * sizeof(uint32_t)));
 CUDA_SAFE_CALL(cudaMallocHost(&h_aMinNonces[thr_id], 2 * sizeof(uint32_t)));
 
-uint16_t *TheCarry = (uint16_t*)calloc(threads * aggr_size, sizeof(uint16_t));
+
 
 uint64_t *Boxptr1 = &TheRamBox[thr_id][0];
 CUDA_SAFE_CALL(cudaMemcpyAsync(Boxptr1, box, RFV2_RAMBOX_SIZE * sizeof(uint64_t), cudaMemcpyHostToDevice));
 
 
-uint16_t *Boxptr = &TheIndex[thr_id][0];
-CUDA_SAFE_CALL(cudaMemcpyAsync(Boxptr, TheCarry, threads * aggr_size * sizeof(uint16_t), cudaMemcpyHostToDevice));
-free(TheCarry);
-
-
-//	cudaMalloc(&Header[thr_id], sizeof(uint32_t) * 8); 
-//	cudaMalloc(&buffer_a[thr_id], 4194304 * 64);
 }
   
  
@@ -183,26 +201,40 @@ void rainforest_setBlockTarget(int thr_id, int throughput, const void* pDataIn, 
 
 
 __host__
-uint32_t rainforest_cpu_hash(int thr_id, uint32_t threads, uint32_t startNounce)
+uint32_t rainforest_cpu_hash(int thr_id, uint32_t threadu, uint32_t startNounce)
 {
 //	cudaSetDevice(device_map[thr_id]);
+	uint32_t TheCounter[1];
 	uint32_t result[1] ={ UINT32_MAX};
 	CUDA_SAFE_CALL(cudaMemset(d_aMinNonces[thr_id], 0xff, 2* sizeof(uint32_t)));
 	CUDA_SAFE_CALL(cudaMemset(h_aMinNonces[thr_id], 0xff, 2 *sizeof(uint32_t)));
+
+	CUDA_SAFE_CALL(cudaMemset(Counter[thr_id], 0x0,  sizeof(uint32_t)));
+
 //	CUDA_SAFE_CALL(cudaMemset(h_MinNonces[thr_id], 0xff, sizeof(uint32_t)));
 //	int dev_id = device_map[thr_id % MAX_GPUS];
-
+	uint32_t threads = threadu/ Looping;
 	uint32_t tpb = TPB;
+	uint32_t tpb2 = TPB2;
+	dim3 gridyloop1(threads / tpb);
+	dim3 blockyloop1(tpb);
 
-	dim3 gridyloop(threads / tpb);
-	dim3 blockyloop(tpb);
 
-	rf256v2_hash_gpu << < gridyloop, blockyloop >> >(thr_id, threads, startNounce, d_aMinNonces[thr_id],TheRamBox[thr_id],TheIndex[thr_id]);
+	rf256v2_init_gpu << < gridyloop1, blockyloop1 >> >(thr_id, threads, startNounce,Counter[thr_id],Selected[thr_id]);
+
+
+	CUDA_SAFE_CALL(cudaMemcpy(TheCounter, Counter[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost));
+
+	dim3 gridyloop((TheCounter[0] + tpb2 -1) / tpb2);
+	dim3 blockyloop(tpb2);
+	cudaDeviceSynchronize();
+
+	rf256v2_hash_gpu << < gridyloop, blockyloop >> >(thr_id, TheCounter[0], startNounce, d_aMinNonces[thr_id],TheRamBox[thr_id], Counter[thr_id], Selected[thr_id]);
 
 	CUDA_SAFE_CALL(cudaMemcpy(h_aMinNonces[thr_id], d_aMinNonces[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost));
 //	CUDA_SAFE_CALL(cudaMemset(d_aMinNonces[thr_id], 0xff, sizeof(uint32_t)));
 //	CUDA_SAFE_CALL(cudaMemcpy(result, d_aMinNonces[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost));
-
+	cudaDeviceSynchronize();
 	result[0] = h_aMinNonces[thr_id][0];
 	return result[0];
 
